@@ -3,11 +3,32 @@ ARG IMAGE_VERSION
 
 FROM ${IMAGE}:${IMAGE_VERSION}
 
-ENV DEBIAN_FRONTEND noninteractive
+ARG TOR_DEB=deb.torproject.org
+ARG TOR_KEY=A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89
+ARG DIST=stable
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     ca-certificates \
+    && apt-get purge -y && apt-get autoremove -y && apt-get autoclean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    gnupg \
+    curl \
+    && echo "deb https://${TOR_DEB}/torproject.org ${DIST} main" >> /etc/apt/sources.list \
+    && echo "deb-src https://${TOR_DEB}/torproject.org ${DIST} main" >> /etc/apt/sources.list \
+    && curl https://${TOR_DEB}/torproject.org/${TOR_KEY}.asc | gpg --import \
+    && gpg --export ${TOR_KEY} | apt-key add - \
+    && apt-get update -y \
+    && apt-get install -y tor ${TOR_DEB}-keyring nyx && apt-get remove -y gnupg && rm -rf root/.gnupg \
+    && apt-get purge -y && apt-get autoremove -y && apt-get autoclean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
     wget \
     xz-utils \
     libglib2.0-0 \
@@ -29,10 +50,17 @@ RUN wget --output-document=freetube.tar.xz ${FREETUBE_DOWNLOAD_URL} \
     && tar -xf freetube.tar.xz --directory=/usr/src/freetube --strip-components=1 \
     && rm -fr freetube.tar.xz
 
+COPY torrc /etc/tor/
+
+EXPOSE 9050
+
+USER debian-tor
+
 ENTRYPOINT ["/bin/bash", "-c"]
 
 CMD ["bash"]
 
-# docker builder build --no-cache --build-arg IMAGE=debian --build-arg IMAGE_VERSION=stable-slim --build-arg FREETUBE_VERSION=0.7.3 --file Dockerfile.debian . --tag freetube:latest
+# docker builder build --no-cache --build-arg IMAGE=debian --build-arg IMAGE_VERSION=stable-slim --build-arg FREETUBE_VERSION=0.7.3 --file Dockerfile.debian . --tag freetube-tor:latest
 # xhost +local:docker
-# docker container run -it --volume /tmp/.X11-unix:/tmp/.X11-unix --volume /dev/shm:/dev/shm --device /dev/snd --device /dev/dri --env DISPLAY=unix$DISPLAY --name freetube freetube:latest
+# docker container run --interactive --tty --volume /tmp/.X11-unix:/tmp/.X11-unix --volume /dev/shm:/dev/shm --device /dev/snd --device /dev/dri --env DISPLAY=unix$DISPLAY --name freetube-tor freetube-tor:latest
+# docker container exec --interactive --tty --user 0 freetube-tor /bin/bash -c '/usr/src/freetube/freetube --no-sandbox'
