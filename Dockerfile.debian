@@ -1,0 +1,35 @@
+ARG IMAGE
+ARG IMAGE_VERSION
+
+FROM ${IMAGE}:${IMAGE_VERSION}
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    wget \
+    xz-utils \
+    libglib2.0-0 \
+    libnss3 \
+    libgdk-pixbuf2.0-0 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    libxtst6 \
+    libxss1 \
+    libasound2 \
+    && apt-get purge -y && apt-get autoremove -y && apt-get autoclean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget --output-document=freetube.tar.xz https://github.com/FreeTubeApp/FreeTube/releases/download/v0.7.3-beta/FreeTube-0.7.3-linux.tar.xz \
+    && mkdir --parents /usr/src/freetube \
+    && tar -xf freetube.tar.xz --directory=/usr/src/freetube --strip-components=1 \
+    && rm -fr freetube.tar.xz
+
+ENTRYPOINT ["/bin/bash", "-c"]
+
+CMD ["bash"]
+
+# docker builder build --no-cache --build-arg IMAGE=debian --build-arg IMAGE_VERSION=stable-slim --file Dockerfile.debian . --tag freetube:latest
+# xhost +local:docker
+# docker container run -it --volume /tmp/.X11-unix:/tmp/.X11-unix --volume /dev/shm:/dev/shm --device /dev/snd --device /dev/dri --env DISPLAY=unix$DISPLAY --name freetube freetube:latest
